@@ -41,17 +41,17 @@
       {
         "id": 4,
         "title": "Modify YouTube Upload Service for Language Parameter",
-        "description": "Update the YouTube upload service to include the language parameter in API requests",
-        "details": "Modify the YouTube upload service in `internal/publishing/youtube.go` to include the language parameter in video upload requests. This is the core implementation that will set the language automatically.\n\nImplementation steps:\n1. Locate the YouTube upload method in `internal/publishing/youtube.go`\n2. Identify where the video snippet or metadata is prepared for the YouTube API\n3. Add the language parameter to the API request using the YouTube Data API v3 `snippet.defaultLanguage` field\n4. Ensure the language is retrieved from configuration or metadata with proper fallbacks\n\nExample implementation:\n```go\n// Assuming this is the method that prepares the video for upload\nfunc (s *YouTubeService) prepareVideoForUpload(video *Video, metadata *VideoMetadata) *youtube.Video {\n\t// Existing code to prepare video\n\t// ...\n\t\n\t// Get language from metadata or default from configuration\n\tlanguage := metadata.GetLanguage(s.config.YouTube.DefaultLanguage)\n\t\n\t// Create YouTube video object\n\tyoutubeVideo := &youtube.Video{\n\t\tSnippet: &youtube.VideoSnippet{\n\t\t\t// Existing fields\n\t\t\t// ...\n\t\t\t\n\t\t\t// Set the default language\n\t\t\tDefaultLanguage: language,\n\t\t},\n\t\t// Other parts of the video object\n\t}\n\t\n\treturn youtubeVideo\n}\n```\n\nEnsure proper error handling if the language setting fails. Use the YouTube Data API v3 documentation to verify the correct parameter names and structure. The current version of the YouTube Data API v3 uses `snippet.defaultLanguage` for setting the video language.",
-        "testStrategy": "Create unit tests for the updated upload service. Mock the YouTube API calls to verify the language parameter is correctly included. Test with various language settings from both metadata and configuration. Create integration tests with the YouTube API sandbox if available.",
-        "priority": "high",
+        "description": "Update the YouTube upload service to include the language parameter in API requests - IMPLEMENTATION COMPLETE",
+        "status": "done",
         "dependencies": [
           1,
           2,
           3
         ],
-        "status": "pending",
-        "subtasks": []
+        "priority": "high",
+        "details": "The YouTube upload service in `internal/publishing/youtube.go` has been successfully updated to include comprehensive language parameter support. The implementation is complete and fully tested.\n\nCompleted implementation includes:\n- DefaultLanguage and DefaultAudioLanguage are properly set on video snippet (lines 312-324)\n- Robust fallback logic from video metadata to global configuration\n- Applied languages are stored back to video struct for consistency\n- Comprehensive test coverage with multiple test scenarios covering various language settings\n- updateVideoLanguage function implemented for updating existing videos\n- All tests are passing successfully\n\nThe core functionality described in the original task requirements has been fully implemented:\n✅ YouTube upload method located and updated\n✅ Video snippet/metadata preparation includes language parameters\n✅ Language parameter added using YouTube Data API v3 `snippet.defaultLanguage` field\n✅ Language retrieval from configuration/metadata with proper fallbacks implemented\n✅ Error handling for language setting implemented\n✅ YouTube Data API v3 documentation compliance verified\n\nNo additional implementation work is required for this task.",
+        "testStrategy": "Testing is complete and comprehensive. The implemented test suite includes:\n- Unit tests for the updated upload service with mocked YouTube API calls\n- Verification that language parameters are correctly included in API requests\n- Testing with various language settings from both metadata and configuration\n- Multiple test scenarios covering edge cases and fallback behavior\n- All tests are currently passing\n\nThe test coverage meets and exceeds the original requirements. Integration tests with YouTube API sandbox were considered but unit tests with proper mocking provide sufficient coverage for this functionality.",
+        "subtasks": null
       },
       {
         "id": 5,
@@ -148,7 +148,7 @@
     ],
     "metadata": {
       "created": "2025-10-19T10:40:26.721Z",
-      "updated": "2025-10-19T13:14:17.772Z",
+      "updated": "2025-10-19T13:25:58.703Z",
       "description": "Tasks for master context"
     }
   }
