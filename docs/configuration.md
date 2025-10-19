@@ -2,6 +2,10 @@
 
 This document outlines the various configuration options available for customizing video uploads.
 
+## Automatic Language Setting
+
+**Language is set automatically** during video uploads without any manual user intervention. The system uses intelligent defaults and configuration settings to determine the appropriate language for each video.
+
 ## Global Default Settings
 
 You can set global default languages for your videos. These will be applied if no specific language is set for an individual video.
@@ -48,4 +52,15 @@ If `language` or `audioLanguage` are omitted or left empty in the video's metada
 The language settings (both global and per-video) affect the `defaultLanguage` and `defaultAudioLanguage` properties of your video on YouTube. This helps YouTube categorize and recommend your content appropriately.
 
 You should use **ISO 639-1 language codes** (e.g., "en" for English, "es" for Spanish, "fr" for French).
-For a comprehensive list of ISO 639-1 codes, you can refer to resources like the [Library of Congress ISO 639-1 Registration Authority](https://www.loc.gov/standards/iso639-2/php/code_list.php) or other official sources. 
+For a comprehensive list of ISO 639-1 codes, you can refer to resources like the [Library of Congress ISO 639-1 Registration Authority](https://www.loc.gov/standards/iso639-2/php/code_list.php) or other official sources.
+
+## User Experience
+
+**No manual language selection is required** during the video upload process. The system automatically:
+
+1. **Uses per-video language settings** if specified in the video metadata
+2. **Falls back to global defaults** from `settings.yaml` or CLI flags
+3. **Defaults to English** if no configuration is provided
+4. **Applies the language** to YouTube's `defaultLanguage` and `defaultAudioLanguage` properties
+
+This streamlined approach reduces user friction while maintaining full control over language settings through configuration. 
