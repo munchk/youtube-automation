@@ -71,7 +71,7 @@
         "id": 6,
         "title": "Remove Language Selection from User Interface",
         "description": "Update the user interface to remove manual language selection prompts and improve documentation to clarify automatic language behavior",
-        "status": "in-progress",
+        "status": "done",
         "dependencies": [
           4
         ],
@@ -180,7 +180,7 @@
     ],
     "metadata": {
       "created": "2025-10-19T10:40:26.721Z",
-      "updated": "2025-10-19T13:31:59.017Z",
+      "updated": "2025-10-19T13:32:14.792Z",
       "description": "Tasks for master context"
     }
   }
