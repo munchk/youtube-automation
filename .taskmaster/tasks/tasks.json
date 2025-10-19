@@ -1,0 +1,155 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Define Language Constants and Types",
+        "description": "Create language constants and types following ISO 639-1 standard with English ('en') as the default language",
+        "details": "Add language constants to `internal/constants/fields.go` following ISO 639-1 standard. Create a new section for language constants with 'en' as the default. Consider using a map or struct to associate language codes with their full names for better readability and future extensibility.\n\nExample implementation:\n```go\n// Language constants following ISO 639-1 standard\nconst (\n\tDefaultLanguage = \"en\"\n\tLanguageEnglish = \"en\"\n\t// Add other languages as needed for future expansion\n)\n\n// LanguageMap maps language codes to their full names\nvar LanguageMap = map[string]string{\n\tLanguageEnglish: \"English\",\n\t// Add other languages as needed\n}\n\n// IsValidLanguage checks if a language code is valid\nfunc IsValidLanguage(code string) bool {\n\t_, exists := LanguageMap[code]\n\treturn exists\n}\n```\n\nEnsure the constants are properly documented with comments explaining their purpose and the standard they follow. This will serve as the foundation for language handling throughout the application.",
+        "testStrategy": "Create unit tests to verify language constants are correctly defined. Test the validation function with valid and invalid language codes. Ensure the default language is set to 'en' (English) as specified in the PRD.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": []
+      },
+      {
+        "id": 2,
+        "title": "Extend Configuration System for Language Settings",
+        "description": "Modify the existing configuration system to include language settings with English as the default",
+        "details": "Extend the configuration system in `internal/configuration/` to include language settings. Add a new configuration field for default language that will be used during YouTube uploads.\n\nImplementation steps:\n1. Identify the appropriate configuration file/structure (likely in `internal/configuration/`)\n2. Add a new field `youtube.default_language` with default value \"en\"\n3. Ensure backward compatibility by making this field optional with a default value\n4. Add validation for the language field using the constants defined in task #1\n\nExample implementation:\n```go\ntype YouTubeConfig struct {\n\t// Existing fields\n\t// ...\n\t\n\t// DefaultLanguage is the language code (ISO 639-1) to be used for video uploads\n\t// If not specified, defaults to \"en\" (English)\n\tDefaultLanguage string `json:\"default_language\" yaml:\"default_language\" default:\"en\"`\n}\n\n// Validate ensures the YouTube configuration is valid\nfunc (c *YouTubeConfig) Validate() error {\n\t// Existing validation\n\t// ...\n\t\n\t// Validate language if specified\n\tif c.DefaultLanguage != \"\" && !constants.IsValidLanguage(c.DefaultLanguage) {\n\t\treturn fmt.Errorf(\"invalid language code: %s\", c.DefaultLanguage)\n\t}\n\t\n\t// If not specified, set to default\n\tif c.DefaultLanguage == \"\" {\n\t\tc.DefaultLanguage = constants.DefaultLanguage\n\t}\n\t\n\treturn nil\n}\n```\n\nEnsure to update any configuration loading and validation logic to handle the new field.",
+        "testStrategy": "Write unit tests for configuration loading with and without language specified. Test validation of valid and invalid language codes. Verify default value is applied when not specified. Test backward compatibility with existing configuration files.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "done",
+        "subtasks": []
+      },
+      {
+        "id": 3,
+        "title": "Extend Video Metadata Model",
+        "description": "Update the video metadata structure to include the language field",
+        "details": "Modify the existing video metadata model to include a language field that will be used during YouTube uploads. This ensures the language information is properly stored and passed through the system.\n\nImplementation steps:\n1. Locate the video metadata structure in the codebase\n2. Add a language field with appropriate type and tags\n3. Update any related constructors or factory methods\n4. Ensure backward compatibility with existing metadata\n\nExample implementation:\n```go\ntype VideoMetadata struct {\n\t// Existing fields\n\t// ...\n\t\n\t// Language represents the ISO 639-1 language code for the video\n\t// Defaults to the configured default language if not specified\n\tLanguage string `json:\"language,omitempty\" yaml:\"language,omitempty\"`\n}\n\n// GetLanguage returns the video language or the default if not set\nfunc (m *VideoMetadata) GetLanguage(defaultLang string) string {\n\tif m.Language == \"\" {\n\t\treturn defaultLang\n\t}\n\treturn m.Language\n}\n```\n\nEnsure any serialization/deserialization logic is updated to handle the new field. Add helper methods to get the language with appropriate fallbacks to the default language.",
+        "testStrategy": "Create unit tests for the updated metadata model. Test serialization and deserialization with and without language specified. Verify the GetLanguage method returns the correct value with various inputs. Test backward compatibility with existing metadata objects.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "done",
+        "subtasks": []
+      },
+      {
+        "id": 4,
+        "title": "Modify YouTube Upload Service for Language Parameter",
+        "description": "Update the YouTube upload service to include the language parameter in API requests",
+        "details": "Modify the YouTube upload service in `internal/publishing/youtube.go` to include the language parameter in video upload requests. This is the core implementation that will set the language automatically.\n\nImplementation steps:\n1. Locate the YouTube upload method in `internal/publishing/youtube.go`\n2. Identify where the video snippet or metadata is prepared for the YouTube API\n3. Add the language parameter to the API request using the YouTube Data API v3 `snippet.defaultLanguage` field\n4. Ensure the language is retrieved from configuration or metadata with proper fallbacks\n\nExample implementation:\n```go\n// Assuming this is the method that prepares the video for upload\nfunc (s *YouTubeService) prepareVideoForUpload(video *Video, metadata *VideoMetadata) *youtube.Video {\n\t// Existing code to prepare video\n\t// ...\n\t\n\t// Get language from metadata or default from configuration\n\tlanguage := metadata.GetLanguage(s.config.YouTube.DefaultLanguage)\n\t\n\t// Create YouTube video object\n\tyoutubeVideo := &youtube.Video{\n\t\tSnippet: &youtube.VideoSnippet{\n\t\t\t// Existing fields\n\t\t\t// ...\n\t\t\t\n\t\t\t// Set the default language\n\t\t\tDefaultLanguage: language,\n\t\t},\n\t\t// Other parts of the video object\n\t}\n\t\n\treturn youtubeVideo\n}\n```\n\nEnsure proper error handling if the language setting fails. Use the YouTube Data API v3 documentation to verify the correct parameter names and structure. The current version of the YouTube Data API v3 uses `snippet.defaultLanguage` for setting the video language.",
+        "testStrategy": "Create unit tests for the updated upload service. Mock the YouTube API calls to verify the language parameter is correctly included. Test with various language settings from both metadata and configuration. Create integration tests with the YouTube API sandbox if available.",
+        "priority": "high",
+        "dependencies": [
+          1,
+          2,
+          3
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 5,
+        "title": "Implement Error Handling for Language Setting",
+        "description": "Add robust error handling for language setting failures during YouTube uploads",
+        "details": "Implement proper error handling for language setting failures to ensure the upload process remains reliable even if language setting encounters issues. This includes validation, logging, and fallback mechanisms.\n\nImplementation steps:\n1. Add validation for language codes before making API requests\n2. Implement detailed error logging for language-related issues\n3. Create fallback mechanisms to ensure uploads can proceed even if language setting fails\n4. Add telemetry to track language setting success/failure rates\n\nExample implementation:\n```go\n// ValidateAndSetLanguage validates the language and sets it in the YouTube video object\nfunc (s *YouTubeService) validateAndSetLanguage(youtubeVideo *youtube.Video, language string) error {\n\t// Validate language\n\tif !constants.IsValidLanguage(language) {\n\t\ts.logger.Warn(\"Invalid language code, falling back to default\", \n\t\t\t\"provided_code\", language,\n\t\t\t\"default_code\", constants.DefaultLanguage)\n\t\t\n\t\t// Fall back to default language\n\t\tlanguage = constants.DefaultLanguage\n\t}\n\t\n\t// Set language in video object\n\ttry {\n\t\tyoutubeVideo.Snippet.DefaultLanguage = language\n\t\ts.metrics.LanguageSetSuccess.Inc()\n\t\treturn nil\n\t} catch (err) {\n\t\ts.logger.Error(\"Failed to set video language\", \n\t\t\t\"error\", err,\n\t\t\t\"language\", language)\n\t\ts.metrics.LanguageSetFailure.Inc()\n\t\t\n\t\t// Don't fail the upload, just log the error\n\t\treturn nil\n\t}\n}\n```\n\nEnsure errors are properly categorized and logged. Use structured logging with relevant context. Add metrics to track success and failure rates for monitoring and alerting.",
+        "testStrategy": "Create unit tests for error handling with various error scenarios. Test validation logic with valid and invalid language codes. Verify fallback to default language works correctly. Test that upload can proceed even if language setting fails. Verify metrics are correctly incremented.",
+        "priority": "medium",
+        "dependencies": [
+          1,
+          4
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 6,
+        "title": "Remove Language Selection from User Interface",
+        "description": "Update the user interface to remove manual language selection prompts",
+        "details": "Modify the user interface to remove any language selection prompts or fields, as language will now be set automatically. This improves the user experience by reducing friction in the upload process.\n\nImplementation steps:\n1. Identify all UI components that include language selection\n2. Remove language selection fields from upload forms\n3. Update any related UI logic that processes language selection\n4. Ensure UI flows smoothly without the language selection step\n\nDepending on the UI framework used (web, desktop, etc.), the implementation will vary. Here's a general approach:\n\n```javascript\n// If using a web UI with React or similar framework\n// Before: Upload form with language selection\nfunction UploadForm() {\n  return (\n    <form>\n      {/* Other form fields */}\n      <div className=\"form-group\">\n        <label>Language</label>\n        <select name=\"language\">\n          <option value=\"en\">English</option>\n          {/* Other language options */}\n        </select>\n      </div>\n      <button type=\"submit\">Upload</button>\n    </form>\n  );\n}\n\n// After: Upload form without language selection\nfunction UploadForm() {\n  return (\n    <form>\n      {/* Other form fields */}\n      <button type=\"submit\">Upload</button>\n    </form>\n  );\n}\n```\n\nEnsure to update any related documentation or tooltips to reflect that language is now set automatically. Consider adding a small informational note that videos are uploaded in English by default if this would be helpful for users.",
+        "testStrategy": "Perform UI testing to verify language selection is removed from all relevant screens. Test the complete upload flow to ensure it works without manual language selection. Conduct usability testing to verify the improved user experience. Test across different devices and screen sizes if applicable.",
+        "priority": "medium",
+        "dependencies": [
+          4
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 7,
+        "title": "Create Configuration CLI for Language Settings",
+        "description": "Implement CLI commands to view and update the default language configuration",
+        "details": "Create command-line interface (CLI) commands to allow users to view and update the default language configuration. This provides flexibility for future language needs while maintaining the automatic setting behavior.\n\nImplementation steps:\n1. Add CLI commands to view current language setting\n2. Add CLI commands to update language setting\n3. Implement validation for language input\n4. Update help documentation for the new commands\n\nExample implementation:\n```go\n// CLI command to view current language setting\nfunc cmdGetLanguage() *cli.Command {\n\treturn &cli.Command{\n\t\tName:  \"get-language\",\n\t\tUsage: \"Display the current default language setting\",\n\t\tAction: func(c *cli.Context) error {\n\t\t\tconfig, err := loadConfig()\n\t\t\tif err != nil {\n\t\t\t\treturn err\n\t\t\t}\n\t\t\t\n\t\t\tlang := config.YouTube.DefaultLanguage\n\t\t\tif lang == \"\" {\n\t\t\t\tlang = constants.DefaultLanguage\n\t\t\t}\n\t\t\t\n\t\t\tfmt.Printf(\"Current default language: %s (%s)\\n\", \n\t\t\t\tlang, constants.LanguageMap[lang])\n\t\t\treturn nil\n\t\t},\n\t}\n}\n\n// CLI command to set default language\nfunc cmdSetLanguage() *cli.Command {\n\treturn &cli.Command{\n\t\tName:  \"set-language\",\n\t\tUsage: \"Set the default language for video uploads\",\n\t\tFlags: []cli.Flag{\n\t\t\t&cli.StringFlag{\n\t\t\t\tName:     \"code\",\n\t\t\t\tRequired: true,\n\t\t\t\tUsage:    \"Language code (ISO 639-1)\",\n\t\t\t},\n\t\t},\n\t\tAction: func(c *cli.Context) error {\n\t\t\tlangCode := c.String(\"code\")\n\t\t\t\n\t\t\t// Validate language code\n\t\t\tif !constants.IsValidLanguage(langCode) {\n\t\t\t\treturn fmt.Errorf(\"invalid language code: %s\", langCode)\n\t\t\t}\n\t\t\t\n\t\t\t// Load config\n\t\t\tconfig, err := loadConfig()\n\t\t\tif err != nil {\n\t\t\t\treturn err\n\t\t\t}\n\t\t\t\n\t\t\t// Update language setting\n\t\t\tconfig.YouTube.DefaultLanguage = langCode\n\t\t\t\n\t\t\t// Save config\n\t\t\tif err := saveConfig(config); err != nil {\n\t\t\t\treturn err\n\t\t\t}\n\t\t\t\n\t\t\tfmt.Printf(\"Default language set to: %s (%s)\\n\", \n\t\t\t\tlangCode, constants.LanguageMap[langCode])\n\t\t\treturn nil\n\t\t},\n\t}\n}\n```\n\nEnsure to add these commands to the main CLI application and update the help documentation. Include examples in the help text to guide users.",
+        "testStrategy": "Create unit tests for CLI commands with various inputs. Test validation of language codes. Test configuration loading and saving. Perform integration tests to verify changes persist across application restarts. Test help documentation for clarity and completeness.",
+        "priority": "low",
+        "dependencies": [
+          1,
+          2
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 8,
+        "title": "Implement Comprehensive Testing Suite",
+        "description": "Create a comprehensive testing suite for language setting functionality",
+        "details": "Develop a comprehensive testing suite that covers all aspects of the language setting functionality, including unit tests, integration tests, and end-to-end tests. This ensures the feature works correctly and doesn't break existing functionality.\n\nImplementation steps:\n1. Create unit tests for all language-related components\n2. Implement integration tests for YouTube API language parameter\n3. Develop end-to-end tests for the complete upload flow\n4. Set up test fixtures and mocks for YouTube API\n\nExample test implementation:\n```go\n// Unit test for language setting in YouTube service\nfunc TestYouTubeServiceLanguageSetting(t *testing.T) {\n\t// Setup test fixtures\n\tconfig := &Config{\n\t\tYouTube: YouTubeConfig{\n\t\t\tDefaultLanguage: \"en\",\n\t\t},\n\t}\n\t\n\t// Create mock YouTube API client\n\tmockClient := newMockYouTubeClient()\n\t\n\t// Create service with mock client\n\tservice := NewYouTubeService(config, mockClient)\n\t\n\t// Create test video and metadata\n\tvideo := &Video{/* test data */}\n\tmetadata := &VideoMetadata{/* test data */}\n\t\n\t// Call upload method\n\terr := service.UploadVideo(video, metadata)\n\t\n\t// Verify no errors\n\tassert.NoError(t, err)\n\t\n\t// Verify language was set correctly in the API call\n\tcalls := mockClient.GetCalls()\n\tassert.Equal(t, 1, len(calls))\n\tassert.Equal(t, \"en\", calls[0].Video.Snippet.DefaultLanguage)\n}\n\n// Integration test with YouTube API sandbox\nfunc TestYouTubeAPILanguageIntegration(t *testing.T) {\n\t// Skip if not running integration tests\n\tif !runIntegrationTests {\n\t\tt.Skip(\"Skipping integration test\")\n\t}\n\t\n\t// Setup real YouTube API client with sandbox credentials\n\tclient := setupSandboxYouTubeClient()\n\t\n\t// Create service with real client\n\tconfig := loadTestConfig()\n\tservice := NewYouTubeService(config, client)\n\t\n\t// Create test video with unique title\n\ttitle := fmt.Sprintf(\"Test Video %d\", time.Now().Unix())\n\tvideo := createTestVideo(title)\n\tmetadata := &VideoMetadata{}\n\t\n\t// Upload video\n\tresult, err := service.UploadVideo(video, metadata)\n\t\n\t// Verify no errors\n\tassert.NoError(t, err)\n\t\n\t// Verify video was uploaded\n\tassert.NotEmpty(t, result.ID)\n\t\n\t// Get video details from API\n\tdetails, err := client.Videos.List(\"snippet\").Id(result.ID).Do()\n\tassert.NoError(t, err)\n\tassert.Equal(t, 1, len(details.Items))\n\t\n\t// Verify language was set correctly\n\tassert.Equal(t, config.YouTube.DefaultLanguage, details.Items[0].Snippet.DefaultLanguage)\n\t\n\t// Cleanup - delete test video\n\t_ = client.Videos.Delete(result.ID).Do()\n}\n```\n\nUse a combination of unit tests with mocks and integration tests with the YouTube API sandbox. Create test fixtures that can be reused across tests. Consider using a test framework that supports test isolation and parallelization for efficiency.",
+        "testStrategy": "Run unit tests as part of the regular build process. Run integration tests in a separate CI/CD pipeline stage. Use test coverage tools to ensure comprehensive coverage of the codebase. Create a test matrix covering different configuration scenarios.",
+        "priority": "medium",
+        "dependencies": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 9,
+        "title": "Update Documentation",
+        "description": "Update user and developer documentation to reflect automatic language setting",
+        "details": "Update all relevant documentation to reflect the automatic language setting feature. This includes user guides, developer documentation, configuration examples, and troubleshooting guides.\n\nImplementation steps:\n1. Update user documentation to explain automatic language setting\n2. Add configuration examples for language settings\n3. Create troubleshooting guides for language-related issues\n4. Update API documentation for developers\n\nDocumentation should cover:\n\n1. User Guide updates:\n```markdown\n## Video Upload Process\n\nWhen uploading videos, the system now automatically sets the language to English. You no longer need to manually select the language during upload.\n\n### Changing the Default Language\n\nIf you need to change the default language for all uploads, you can use the following command:\n\n```\n$ app set-language --code=en\n```\n\nReplace `en` with the desired language code (ISO 639-1 standard).\n```\n\n2. Developer Documentation updates:\n```markdown\n## YouTube Upload Service\n\nThe YouTube upload service automatically sets the video language to the configured default (English by default). This is done by setting the `snippet.defaultLanguage` parameter in the YouTube Data API v3 request.\n\n### Configuration\n\nThe default language is configured in the application configuration:\n\n```yaml\nyoutube:\n  default_language: \"en\"  # ISO 639-1 language code\n```\n\n### Implementation Details\n\nThe language setting is implemented in `internal/publishing/youtube.go` and uses the language constants defined in `internal/constants/fields.go`.\n```\n\n3. Troubleshooting Guide:\n```markdown\n## Language Setting Issues\n\n### Video Uploads with Incorrect Language\n\nIf videos are being uploaded with the wrong language:\n\n1. Check the current default language setting:\n   ```\n   $ app get-language\n   ```\n\n2. Verify the language code is valid (ISO 639-1 standard)\n\n3. Set the correct language:\n   ```\n   $ app set-language --code=en\n   ```\n\n4. Check the application logs for any language-related errors\n```",
+        "testStrategy": "Review documentation for accuracy and completeness. Verify all examples work as described. Have team members review documentation for clarity. Test documentation with users if possible to ensure it addresses their needs.",
+        "priority": "low",
+        "dependencies": [
+          1,
+          2,
+          3,
+          4,
+          6,
+          7
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 10,
+        "title": "Perform Regression Testing and Validation",
+        "description": "Conduct comprehensive regression testing to ensure no existing functionality is broken",
+        "details": "Perform thorough regression testing to validate that the automatic language setting feature doesn't break any existing functionality. This includes testing the complete video upload flow, configuration system, and user interface.\n\nImplementation steps:\n1. Create a regression test plan covering all existing functionality\n2. Test the complete video upload flow with automatic language setting\n3. Verify configuration system still works correctly\n4. Test backward compatibility with existing configurations\n5. Validate user interface changes don't break existing workflows\n\nRegression test plan should include:\n\n1. Upload Flow Testing:\n   - Upload video with new code and verify it completes successfully\n   - Verify language is set correctly in YouTube metadata\n   - Test with various video formats and sizes\n   - Verify all other metadata is correctly set\n\n2. Configuration Testing:\n   - Test with existing configuration files\n   - Test with missing language configuration\n   - Test with invalid language configuration\n   - Verify configuration validation works correctly\n\n3. UI Testing:\n   - Verify upload UI works without language selection\n   - Test all UI paths that previously included language selection\n   - Verify error messages are clear and helpful\n\n4. Performance Testing:\n   - Verify upload performance is not degraded\n   - Test with multiple concurrent uploads\n\nImplement automated tests where possible and document manual test procedures for aspects that can't be easily automated. Consider implementing a feature flag to enable/disable automatic language setting during testing and rollout.",
+        "testStrategy": "Create a comprehensive test matrix covering all test scenarios. Use a combination of automated and manual testing. Document all test results with screenshots or logs. Verify with real YouTube uploads in a test environment. Test with different user roles and permissions if applicable.",
+        "priority": "high",
+        "dependencies": [
+          4,
+          5,
+          6,
+          8
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-10-19T10:40:26.721Z",
+      "updated": "2025-10-19T13:14:17.772Z",
+      "description": "Tasks for master context"
+    }
+  }
+}

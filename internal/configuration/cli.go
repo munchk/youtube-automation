@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"devopstoolkit/youtube-automation/internal/constants"
+
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -123,12 +125,18 @@ func init() {
 	}
 
 	// Added for PRD: Automated Video Language Setting
-	// Default video language if not set by file or flag (flag default is 'en')
+	// Default video language if not set by file or flag (uses constants.DefaultLanguage)
 	if GlobalSettings.VideoDefaults.Language == "" {
-		GlobalSettings.VideoDefaults.Language = "en"
+		GlobalSettings.VideoDefaults.Language = constants.DefaultLanguage
 	}
 	if GlobalSettings.VideoDefaults.AudioLanguage == "" {
-		GlobalSettings.VideoDefaults.AudioLanguage = "en"
+		GlobalSettings.VideoDefaults.AudioLanguage = constants.DefaultLanguage
+	}
+
+	// Validate language settings
+	if err := validateLanguageSettings(); err != nil {
+		fmt.Printf("Error validating language settings: %s\n", err)
+		osExit(1)
 	}
 
 	// Default API settings
@@ -228,4 +236,30 @@ func GetArgs() {
 		fmt.Fprintf(os.Stderr, "Whoops. There was an error while executing the CLI '%s'", err)
 		osExit(1)
 	}
+}
+
+// validateLanguageSettings validates the language configuration settings
+func validateLanguageSettings() error {
+	// Validate video language
+	if !constants.IsValidLanguage(GlobalSettings.VideoDefaults.Language) {
+		return fmt.Errorf("invalid video language code: %s. Supported languages: %v",
+			GlobalSettings.VideoDefaults.Language, getSupportedLanguages())
+	}
+
+	// Validate audio language
+	if !constants.IsValidLanguage(GlobalSettings.VideoDefaults.AudioLanguage) {
+		return fmt.Errorf("invalid audio language code: %s. Supported languages: %v",
+			GlobalSettings.VideoDefaults.AudioLanguage, getSupportedLanguages())
+	}
+
+	return nil
+}
+
+// getSupportedLanguages returns a list of supported language codes
+func getSupportedLanguages() []string {
+	languages := make([]string, 0, len(constants.LanguageMap))
+	for code := range constants.LanguageMap {
+		languages = append(languages, code)
+	}
+	return languages
 }

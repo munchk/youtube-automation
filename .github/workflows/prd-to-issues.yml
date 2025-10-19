@@ -1,0 +1,154 @@
+name: Convert PRD to GitHub Issues
+
+on:
+  push:
+    paths:
+      - '.taskmaster/docs/prd.txt'
+      - '.taskmaster/docs/*.txt'
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      prd_file:
+        description: 'PRD file path (relative to .taskmaster/docs/)'
+        required: false
+        default: 'prd.txt'
+
+jobs:
+  convert-prd-to-issues:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Taskmaster CLI
+        run: npm install -g task-master-ai
+
+      - name: Check if PRD exists
+        id: check-prd
+        run: |
+          PRD_FILE="${{ github.event.inputs.prd_file || 'prd.txt' }}"
+          if [ -f ".taskmaster/docs/$PRD_FILE" ]; then
+            echo "prd_exists=true" >> $GITHUB_OUTPUT
+            echo "prd_file=$PRD_FILE" >> $GITHUB_OUTPUT
+          else
+            echo "prd_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Initialize Taskmaster (if needed)
+        if: steps.check-prd.outputs.prd_exists == 'true'
+        run: |
+          if [ ! -d ".taskmaster" ]; then
+            task-master init --yes
+          fi
+
+      - name: Parse PRD and generate tasks
+        if: steps.check-prd.outputs.prd_exists == 'true'
+        run: |
+          PRD_FILE="${{ steps.check-prd.outputs.prd_file }}"
+          task-master parse-prd ".taskmaster/docs/$PRD_FILE" --force --research
+
+      - name: Get generated tasks
+        if: steps.check-prd.outputs.prd_exists == 'true'
+        id: get-tasks
+        run: |
+          # Get tasks from Taskmaster
+          TASKS_JSON=$(task-master list --json 2>/dev/null || echo '[]')
+          echo "tasks_json<<EOF" >> $GITHUB_OUTPUT
+          echo "$TASKS_JSON" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Issues
+        if: steps.check-prd.outputs.prd_exists == 'true' && steps.get-tasks.outputs.tasks_json != '[]'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create a script to convert tasks to GitHub issues
+          cat > convert_tasks_to_issues.js << 'EOF'
+          const fs = require('fs');
+          const { execSync } = require('child_process');
+          
+          try {
+            // Read tasks from Taskmaster
+            const tasksOutput = execSync('task-master list --json', { encoding: 'utf8' });
+            const tasks = JSON.parse(tasksOutput);
+            
+            if (!tasks || !tasks.tasks || tasks.tasks.length === 0) {
+              console.log('No tasks found to convert');
+              process.exit(0);
+            }
+            
+            console.log(`Found ${tasks.tasks.length} tasks to convert to GitHub issues`);
+            
+            // Create issues for each task
+            for (const task of tasks.tasks) {
+              if (task.status === 'pending') {
+                const issueBody = `## Task ${task.id}: ${task.title}
+          
+          **Priority:** ${task.priority}
+          **Dependencies:** ${task.dependencies && task.dependencies.length > 0 ? task.dependencies.join(', ') : 'None'}
+          
+          ### Description
+          ${task.description}
+          
+          ### Acceptance Criteria
+          - [ ] Implementation completed
+          - [ ] Tests written and passing
+          - [ ] Documentation updated
+          - [ ] Code reviewed and approved
+          
+          ### Technical Notes
+          - This task was automatically generated from PRD
+          - Please ensure all dependencies are completed before starting
+          - Update this issue with progress and any blockers`;
+                
+                const labels = [
+                  'enhancement',
+                  'auto-generated',
+                  task.priority === 'high' ? 'high-priority' : 
+                  task.priority === 'medium' ? 'medium-priority' : 'low-priority'
+                ];
+                
+                const ghCommand = `gh issue create --title "${task.title}" --body "${issueBody.replace(/"/g, '\\"')}" --label "${labels.join(',')}"`;
+                
+                try {
+                  const result = execSync(ghCommand, { encoding: 'utf8' });
+                  console.log(`Created issue for task ${task.id}: ${result.trim()}`);
+                } catch (error) {
+                  console.error(`Failed to create issue for task ${task.id}:`, error.message);
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error converting tasks to issues:', error.message);
+            process.exit(1);
+          }
+          EOF
+          
+          node convert_tasks_to_issues.js
+
+      - name: Update existing issues (if any)
+        if: steps.check-prd.outputs.prd_exists == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # This step could be enhanced to update existing issues
+          # For now, we'll just log that the PRD was processed
+          echo "PRD processed successfully. Check the Issues tab for new issues."
+
+      - name: Create summary
+        if: steps.check-prd.outputs.prd_exists == 'true'
+        run: |
+          echo "## PRD to Issues Conversion Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ PRD file processed: ${{ steps.check-prd.outputs.prd_file }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Tasks generated and converted to GitHub issues" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Check the Issues tab to see the new issues" >> $GITHUB_STEP_SUMMARY

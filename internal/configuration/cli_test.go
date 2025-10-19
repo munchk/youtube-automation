@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"devopstoolkit/youtube-automation/internal/constants"
+
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1064,4 +1066,161 @@ slack:
 	// One would typically refactor the core loading logic from init() into a separate
 	// function to test it in isolation without re-running all flag setup.
 	// For now, the direct unmarshal test above is safer and more targeted for YAML loading.
+}
+
+func TestValidateLanguageSettings(t *testing.T) {
+	tests := []struct {
+		name          string
+		videoLanguage string
+		audioLanguage string
+		expectedError bool
+		errorContains string
+	}{
+		{
+			name:          "Valid English language",
+			videoLanguage: "en",
+			audioLanguage: "en",
+			expectedError: false,
+		},
+		{
+			name:          "Valid language from constants",
+			videoLanguage: constants.LanguageEnglish,
+			audioLanguage: constants.DefaultLanguage,
+			expectedError: false,
+		},
+		{
+			name:          "Invalid video language",
+			videoLanguage: "invalid",
+			audioLanguage: "en",
+			expectedError: true,
+			errorContains: "invalid video language code",
+		},
+		{
+			name:          "Invalid audio language",
+			videoLanguage: "en",
+			audioLanguage: "invalid",
+			expectedError: true,
+			errorContains: "invalid audio language code",
+		},
+		{
+			name:          "Both languages invalid",
+			videoLanguage: "invalid1",
+			audioLanguage: "invalid2",
+			expectedError: true,
+			errorContains: "invalid video language code",
+		},
+		{
+			name:          "Empty video language",
+			videoLanguage: "",
+			audioLanguage: "en",
+			expectedError: true,
+			errorContains: "invalid video language code",
+		},
+		{
+			name:          "Empty audio language",
+			videoLanguage: "en",
+			audioLanguage: "",
+			expectedError: true,
+			errorContains: "invalid audio language code",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set up test settings
+			originalSettings := GlobalSettings
+			defer func() {
+				GlobalSettings = originalSettings
+			}()
+
+			GlobalSettings.VideoDefaults.Language = tt.videoLanguage
+			GlobalSettings.VideoDefaults.AudioLanguage = tt.audioLanguage
+
+			err := validateLanguageSettings()
+
+			if tt.expectedError {
+				assert.Error(t, err, "Expected error but got none")
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains, "Error should contain: %s", tt.errorContains)
+				}
+			} else {
+				assert.NoError(t, err, "Expected no error but got: %v", err)
+			}
+		})
+	}
+}
+
+func TestGetSupportedLanguages(t *testing.T) {
+	languages := getSupportedLanguages()
+
+	// Should contain at least English
+	assert.Contains(t, languages, "en", "Supported languages should include 'en'")
+	assert.Contains(t, languages, constants.LanguageEnglish, "Supported languages should include LanguageEnglish constant")
+
+	// Should not be empty
+	assert.NotEmpty(t, languages, "Supported languages should not be empty")
+
+	// Should match the LanguageMap keys
+	expectedLanguages := make([]string, 0, len(constants.LanguageMap))
+	for code := range constants.LanguageMap {
+		expectedLanguages = append(expectedLanguages, code)
+	}
+	assert.ElementsMatch(t, expectedLanguages, languages, "Supported languages should match LanguageMap keys")
+}
+
+func TestLanguageSettingsIntegration(t *testing.T) {
+	// Set up test settings with default values
+	originalSettings := GlobalSettings
+	defer func() {
+		GlobalSettings = originalSettings
+	}()
+
+	// Set the language settings to default values
+	GlobalSettings.VideoDefaults.Language = constants.DefaultLanguage
+	GlobalSettings.VideoDefaults.AudioLanguage = constants.DefaultLanguage
+
+	// Test that the language settings are properly integrated with constants
+	assert.Equal(t, constants.DefaultLanguage, GlobalSettings.VideoDefaults.Language,
+		"Default video language should match constants.DefaultLanguage")
+	assert.Equal(t, constants.DefaultLanguage, GlobalSettings.VideoDefaults.AudioLanguage,
+		"Default audio language should match constants.DefaultLanguage")
+
+	// Test that the settings are valid
+	err := validateLanguageSettings()
+	assert.NoError(t, err, "Default language settings should be valid")
+}
+
+func TestLanguageSettingsYAML(t *testing.T) {
+	yamlContent := `
+videoDefaults:
+  language: "en"
+  audioLanguage: "en"
+`
+
+	settingsPath, cleanup := setupTestSettings(t, yamlContent)
+	defer cleanup()
+
+	// Change to the test directory
+	originalDir, _ := os.Getwd()
+	defer os.Chdir(originalDir)
+	os.Chdir(filepath.Dir(settingsPath))
+
+	// Create a new settings instance to test YAML loading
+	var testSettings Settings
+	err := yaml.Unmarshal([]byte(yamlContent), &testSettings)
+	require.NoError(t, err, "YAML should unmarshal successfully")
+
+	// Test that language settings are loaded correctly
+	assert.Equal(t, "en", testSettings.VideoDefaults.Language, "Video language should be loaded from YAML")
+	assert.Equal(t, "en", testSettings.VideoDefaults.AudioLanguage, "Audio language should be loaded from YAML")
+
+	// Test validation with loaded settings
+	originalSettings := GlobalSettings
+	defer func() {
+		GlobalSettings = originalSettings
+	}()
+
+	GlobalSettings = testSettings
+	err = validateLanguageSettings()
+	assert.NoError(t, err, "Language settings from YAML should be valid")
 }

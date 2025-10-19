@@ -419,3 +419,245 @@ func TestVideo_JSONConsistency(t *testing.T) {
 	})
 
 }
+
+// TestVideo_GetLanguage tests the GetLanguage helper method
+func TestVideo_GetLanguage(t *testing.T) {
+	tests := []struct {
+		name           string
+		video          Video
+		defaultLang    string
+		expectedResult string
+	}{
+		{
+			name: "Language field set, should return video language",
+			video: Video{
+				Name:     "Test Video",
+				Language: "es",
+			},
+			defaultLang:    "en",
+			expectedResult: "es",
+		},
+		{
+			name: "Language field empty, should return default",
+			video: Video{
+				Name:     "Test Video",
+				Language: "",
+			},
+			defaultLang:    "fr",
+			expectedResult: "fr",
+		},
+		{
+			name: "Language field empty, default empty, should return empty",
+			video: Video{
+				Name:     "Test Video",
+				Language: "",
+			},
+			defaultLang:    "",
+			expectedResult: "",
+		},
+		{
+			name: "Language field set to same as default",
+			video: Video{
+				Name:     "Test Video",
+				Language: "de",
+			},
+			defaultLang:    "de",
+			expectedResult: "de",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.video.GetLanguage(tt.defaultLang)
+			assert.Equal(t, tt.expectedResult, result)
+		})
+	}
+}
+
+// TestVideo_GetAudioLanguage tests the GetAudioLanguage helper method
+func TestVideo_GetAudioLanguage(t *testing.T) {
+	tests := []struct {
+		name           string
+		video          Video
+		defaultLang    string
+		expectedResult string
+	}{
+		{
+			name: "AudioLanguage field set, should return video audio language",
+			video: Video{
+				Name:          "Test Video",
+				AudioLanguage: "ja",
+			},
+			defaultLang:    "en",
+			expectedResult: "ja",
+		},
+		{
+			name: "AudioLanguage field empty, should return default",
+			video: Video{
+				Name:          "Test Video",
+				AudioLanguage: "",
+			},
+			defaultLang:    "ko",
+			expectedResult: "ko",
+		},
+		{
+			name: "AudioLanguage field empty, default empty, should return empty",
+			video: Video{
+				Name:          "Test Video",
+				AudioLanguage: "",
+			},
+			defaultLang:    "",
+			expectedResult: "",
+		},
+		{
+			name: "AudioLanguage field set to same as default",
+			video: Video{
+				Name:          "Test Video",
+				AudioLanguage: "zh",
+			},
+			defaultLang:    "zh",
+			expectedResult: "zh",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.video.GetAudioLanguage(tt.defaultLang)
+			assert.Equal(t, tt.expectedResult, result)
+		})
+	}
+}
+
+// TestVideo_LanguageSerialization tests serialization/deserialization with language fields
+func TestVideo_LanguageSerialization(t *testing.T) {
+	t.Run("Video with language fields should serialize correctly", func(t *testing.T) {
+		video := Video{
+			Name:          "Test Video",
+			Language:      "es",
+			AudioLanguage: "fr",
+		}
+
+		// Test JSON serialization
+		jsonData, err := json.Marshal(video)
+		require.NoError(t, err)
+
+		var jsonMap map[string]interface{}
+		err = json.Unmarshal(jsonData, &jsonMap)
+		require.NoError(t, err)
+
+		assert.Equal(t, "es", jsonMap["language"])
+		assert.Equal(t, "fr", jsonMap["audioLanguage"])
+	})
+
+	t.Run("Video without language fields should serialize with empty strings", func(t *testing.T) {
+		video := Video{
+			Name: "Test Video",
+			// Language and AudioLanguage are empty strings by default
+		}
+
+		jsonData, err := json.Marshal(video)
+		require.NoError(t, err)
+
+		var jsonMap map[string]interface{}
+		err = json.Unmarshal(jsonData, &jsonMap)
+		require.NoError(t, err)
+
+		// Check if language fields exist and are empty strings
+		// Note: JSON serialization might omit empty strings depending on tags
+		language, hasLanguage := jsonMap["language"]
+		audioLanguage, hasAudioLanguage := jsonMap["audioLanguage"]
+
+		if hasLanguage {
+			assert.Equal(t, "", language)
+		}
+		if hasAudioLanguage {
+			assert.Equal(t, "", audioLanguage)
+		}
+	})
+
+	t.Run("Video should deserialize from JSON with language fields", func(t *testing.T) {
+		jsonData := `{
+			"name": "Test Video",
+			"language": "de",
+			"audioLanguage": "it"
+		}`
+
+		var video Video
+		err := json.Unmarshal([]byte(jsonData), &video)
+		require.NoError(t, err)
+
+		assert.Equal(t, "Test Video", video.Name)
+		assert.Equal(t, "de", video.Language)
+		assert.Equal(t, "it", video.AudioLanguage)
+	})
+}
+
+// TestVideo_LanguageYAMLSerialization tests YAML serialization/deserialization with language fields
+func TestVideo_LanguageYAMLSerialization(t *testing.T) {
+	t.Run("Video with language fields should serialize to YAML correctly", func(t *testing.T) {
+		video := Video{
+			Name:          "Test Video",
+			Language:      "pt",
+			AudioLanguage: "ru",
+		}
+
+		// Test YAML serialization
+		yamlData, err := yaml.Marshal(video)
+		require.NoError(t, err)
+
+		// Verify YAML contains language fields
+		yamlStr := string(yamlData)
+		assert.Contains(t, yamlStr, "language: pt")
+		assert.Contains(t, yamlStr, "audioLanguage: ru")
+	})
+
+	t.Run("Video should deserialize from YAML with language fields", func(t *testing.T) {
+		yamlData := `name: Test Video
+language: nl
+audioLanguage: sv`
+
+		var video Video
+		err := yaml.Unmarshal([]byte(yamlData), &video)
+		require.NoError(t, err)
+
+		assert.Equal(t, "Test Video", video.Name)
+		assert.Equal(t, "nl", video.Language)
+		assert.Equal(t, "sv", video.AudioLanguage)
+	})
+}
+
+// TestVideo_BackwardCompatibility tests backward compatibility with existing metadata
+func TestVideo_BackwardCompatibility(t *testing.T) {
+	t.Run("Existing video without language fields should work with new methods", func(t *testing.T) {
+		// Simulate an old video metadata without language fields
+		oldVideo := Video{
+			Name:     "Old Video",
+			Category: "testing",
+			Title:    "Old Title",
+			// Language and AudioLanguage are empty strings (default)
+		}
+
+		// Should not panic and should return defaults
+		language := oldVideo.GetLanguage("en")
+		audioLanguage := oldVideo.GetAudioLanguage("en")
+
+		assert.Equal(t, "en", language)
+		assert.Equal(t, "en", audioLanguage)
+	})
+
+	t.Run("Video with partial language fields should work correctly", func(t *testing.T) {
+		video := Video{
+			Name:     "Partial Language Video",
+			Language: "es",
+			// AudioLanguage is empty
+		}
+
+		// Language should return video's language
+		language := video.GetLanguage("en")
+		assert.Equal(t, "es", language)
+
+		// AudioLanguage should return default
+		audioLanguage := video.GetAudioLanguage("fr")
+		assert.Equal(t, "fr", audioLanguage)
+	})
+}

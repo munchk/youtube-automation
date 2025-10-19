@@ -69,3 +69,24 @@ const (
 	FieldTitleCodeRepository      = "Code Repository URL"
 	FieldTitleNotifySponsors      = "Notify Sponsors"
 )
+
+// Language constants following ISO 639-1 standard
+const (
+	// DefaultLanguage is the default language code for YouTube videos
+	DefaultLanguage = "en"
+	// LanguageEnglish is the ISO 639-1 code for English
+	LanguageEnglish = "en"
+	// Add other languages as needed for future expansion
+)
+
+// LanguageMap maps language codes to their full names for better readability
+var LanguageMap = map[string]string{
+	LanguageEnglish: "English",
+	// Add other languages as needed for future expansion
+}
+
+// IsValidLanguage checks if a language code is valid according to our supported languages
+func IsValidLanguage(code string) bool {
+	_, exists := LanguageMap[code]
+	return exists
+}

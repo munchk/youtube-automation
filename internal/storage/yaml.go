@@ -153,3 +153,19 @@ func (y *YAML) WriteIndex(vi []VideoIndex) error {
 	}
 	return nil
 }
+
+// GetLanguage returns the video language or the default if not set
+func (v *Video) GetLanguage(defaultLang string) string {
+	if v.Language == "" {
+		return defaultLang
+	}
+	return v.Language
+}
+
+// GetAudioLanguage returns the video audio language or the default if not set
+func (v *Video) GetAudioLanguage(defaultLang string) string {
+	if v.AudioLanguage == "" {
+		return defaultLang
+	}
+	return v.AudioLanguage
+}
