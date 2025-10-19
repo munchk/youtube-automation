@@ -309,37 +309,38 @@ If you are interested in sponsoring this channel, please visit https://devopstoo
 		upload.Snippet.Tags = strings.Split(video.Tags, ",")
 	}
 
-	// Determine languages to set
-	finalDefaultLanguage := video.Language
-	if finalDefaultLanguage == "" {
-		finalDefaultLanguage = configuration.GlobalSettings.VideoDefaults.Language // Guaranteed non-empty by cli.go
+	// Set language with proper error handling and fallback mechanisms
+	defaultLanguage := configuration.GlobalSettings.VideoDefaults.Language
+	err = ValidateAndSetLanguage(upload, video, defaultLanguage)
+	if err != nil {
+		// Log the error but don't fail the upload
+		LogYouTubeError(CategorizeError(err), "Language setting failed, continuing with upload")
 	}
-
-	finalDefaultAudioLanguage := video.AudioLanguage
-	if finalDefaultAudioLanguage == "" {
-		finalDefaultAudioLanguage = configuration.GlobalSettings.VideoDefaults.AudioLanguage // Guaranteed non-empty by cli.go
-	}
-
-	upload.Snippet.DefaultLanguage = finalDefaultLanguage
-	upload.Snippet.DefaultAudioLanguage = finalDefaultAudioLanguage
 
 	call := service.Videos.Insert([]string{"snippet", "status"}, upload)
 	file, err := os.Open(video.UploadVideo)
 	if err != nil {
+		LogYouTubeError(NewUploadError("", err), "Failed to open video file")
+		YouTubeMetrics.IncUploadFailure()
 		log.Fatalf("Error opening %v: %v", video.UploadVideo, err)
 	}
+	defer file.Close()
 
 	response, err := call.Media(file).Do()
-	file.Close()
 	if err != nil {
+		LogYouTubeError(CategorizeError(err), "YouTube API upload failed")
+		YouTubeMetrics.IncUploadFailure()
 		log.Fatalf("Error getting response from YouTube during insert: %v", err)
 	}
+
+	// Log successful upload
+	LogUploadOperation(response.Id, true, nil)
+	YouTubeMetrics.IncUploadSuccess()
 	fmt.Printf("Upload successful! Video ID: %v\n", response.Id)
 
-	// Save the applied languages back to the video struct
-	video.AppliedLanguage = finalDefaultLanguage
-	video.AppliedAudioLanguage = finalDefaultAudioLanguage
-	log.Printf("DEBUG: Language %s and Audio Language %s stored in video struct for video ID %s", video.AppliedLanguage, video.AppliedAudioLanguage, response.Id)
+	// Log language information
+	LogYouTubeInfo("Language %s and Audio Language %s applied to video ID %s", 
+		video.AppliedLanguage, video.AppliedAudioLanguage, response.Id)
 
 	return response.Id
 }
@@ -429,17 +430,16 @@ func (a *youtubeServiceAdapter) Update(part []string, video *youtube.Video) vide
 }
 
 func updateVideoLanguage(updater videoServiceUpdater, videoID string, languageCode string, audioLanguageCode string) error {
-	// Determine final language codes with fallbacks
-	finalLangCode := languageCode
-	if finalLangCode == "" {
-		finalLangCode = configuration.GlobalSettings.VideoDefaults.Language // Guaranteed non-empty by cli.go
-	}
+	// Validate language codes with proper error handling
+	defaultLanguage := configuration.GlobalSettings.VideoDefaults.Language
 
-	finalAudioLangCode := audioLanguageCode
-	if finalAudioLangCode == "" {
-		finalAudioLangCode = configuration.GlobalSettings.VideoDefaults.AudioLanguage // Guaranteed non-empty by cli.go
-	}
+	// Validate and get language codes with fallback
+	finalLangCode, finalAudioLangCode := GetLanguageWithFallback(&storage.Video{
+		Language:      languageCode,
+		AudioLanguage: audioLanguageCode,
+	}, defaultLanguage)
 
+	// Create video update object
 	updateVideo := &youtube.Video{
 		Id: videoID,
 		Snippet: &youtube.VideoSnippet{
@@ -448,7 +448,21 @@ func updateVideoLanguage(updater videoServiceUpdater, videoID string, languageCo
 		},
 	}
 
+	// Perform the update with error handling
 	updateCall := updater.Update([]string{"snippet"}, updateVideo)
 	_, err := updateCall.Do()
-	return err
+	
+	if err != nil {
+		LogYouTubeError(NewLanguageError(finalLangCode, err), "Failed to update video language")
+		YouTubeMetrics.IncLanguageSetFailure()
+		return err
+	}
+
+	// Log successful update
+	LogLanguageSetting(finalLangCode, true, false, nil)
+	YouTubeMetrics.IncLanguageSetSuccess()
+	LogYouTubeInfo("Successfully updated language for video %s to %s (audio: %s)", 
+		videoID, finalLangCode, finalAudioLangCode)
+
+	return nil
 }
